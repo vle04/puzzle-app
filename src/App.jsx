@@ -116,8 +116,6 @@ function App() {
     const correctX = piece.correctCol * pieceWidth;
     const correctY = piece.correctRow * pieceHeight;
 
-    const container = document.getElementById("puzzle-container");
-
     const distance = Math.sqrt(
       Math.pow(piece.x - correctX, 2) + Math.pow(piece.y - correctY, 2),
     );
