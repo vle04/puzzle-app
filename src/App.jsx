@@ -1,9 +1,17 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 function App() {
   const [image, setImage] = useState(null);
   const [displayImg, setDisplayImg] = useState(false);
   const [pieces, setPieces] = useState([]);
+  const [puzzleDimensions, setPuzzleDimensions] = useState({
+    width: 0,
+    height: 0,
+    cols: 0,
+    rows: 0,
+  });
+  const [draggedPiece, setDraggedPiece] = useState(null);
 
   // handles image upload from user
   const handleUpload = (e) => {
@@ -21,8 +29,7 @@ function App() {
 
   // creates the puzzle pieces from an image
   const makePuzzle = () => {
-    console.log("button clicked");
-    const MAX_SIZE = 800;
+    const MAX_SIZE = 650;
     const COLS = 5;
     const img = new Image();
 
@@ -78,13 +85,72 @@ function App() {
       }
 
       // shuffle + store pieces
-      const shuffled = [...pieces].sort(() => Math.random() - 0.5);
+      const shuffled = [...pieces]
+        .map((piece) => ({
+          ...piece,
+          x: Math.random() * (puzzleWidth - pieceWidth), // random starting position
+          y: Math.random() * (puzzleHeight - pieceHeight),
+          placed: false,
+        }))
+        .sort(() => Math.random() - 0.5);
+
       setPieces(shuffled);
+      setPuzzleDimensions({
+        width: puzzleWidth,
+        height: puzzleHeight,
+        cols: COLS,
+        rows: ROWS,
+      });
       setDisplayImg(false);
-      console.log(shuffled);
     };
 
     img.src = image;
+  };
+
+  // snapping logic
+  const handleDragEnd = (e, info, piece) => {
+    const pieceWidth = puzzleDimensions.width / puzzleDimensions.cols;
+    const pieceHeight = puzzleDimensions.height / puzzleDimensions.rows;
+
+    const correctX = piece.correctCol * pieceWidth;
+    const correctY = piece.correctRow * pieceHeight;
+
+    const container = document.getElementById("puzzle-container");
+    const rect = container.getBoundingClientRect();
+
+    // const droppedX = piece.x + info.offset.x;
+    // const droppedY = piece.y + info.offset.y;
+
+    const distance = Math.sqrt(
+      Math.pow(piece.x - correctX, 2) + Math.pow(piece.y - correctY, 2),
+    );
+
+    // console.log("dropped at:", droppedX, droppedY);
+    console.log("correct pos:", correctX, correctY);
+    console.log("distance:", distance);
+
+    // use half the piece size as threshold so anywhere on the piece counts
+    const threshold = Math.min(pieceWidth, pieceHeight) / 2;
+
+    if (distance < threshold) {
+      setPieces((prev) =>
+        prev.map((p) =>
+          p.id === piece.id
+            ? { ...p, x: correctX, y: correctY, placed: true }
+            : p,
+        ),
+      );
+    }
+  };
+
+  const handleDrag = (e, info, piece) => {
+    setPieces((prev) =>
+      prev.map((p) =>
+        p.id === piece.id
+          ? { ...p, x: p.x + info.delta.x, y: p.y + info.delta.y }
+          : p,
+      ),
+    );
   };
 
   return (
@@ -112,18 +178,38 @@ function App() {
       {pieces.length > 0 && (
         <div
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "4px",
-            maxWidth: "800px",
+            position: "relative",
+            width: puzzleDimensions.width,
+            height: puzzleDimensions.height,
+            border: "1px solid #333",
+            // overflow: "hidden",
           }}
+          id="puzzle-container"
         >
           {pieces.map((piece) => (
-            <img
+            <motion.img
               key={piece.id}
               src={piece.imageData}
               alt={`piece ${piece.id}`}
-              style={{ width: "90px", height: "90px", objectFit: "cover" }}
+              style={{
+                position: "absolute",
+                width: puzzleDimensions.width / puzzleDimensions.cols,
+                height: puzzleDimensions.height / puzzleDimensions.rows,
+                cursor: "grab",
+                boxSizing: "border-box",
+                zIndex: draggedPiece === piece.id ? 100 : piece.placed ? 1 : 2,
+              }}
+              drag={!piece.placed}
+              onDrag={(e, info) => handleDrag(e, info, piece)}
+              whileDrag={{ scale: 1.05, zIndex: 10 }}
+              dragMomentum={false}
+              initial={{ x: piece.x, y: piece.y }}
+              animate={piece.placed ? { x: piece.x, y: piece.y } : undefined}
+              onDragStart={() => setDraggedPiece(piece.id)}
+              onDragEnd={(e, info) => {
+                handleDragEnd(e, info, piece);
+                setDraggedPiece(null);
+              }}
             />
           ))}
         </div>
